@@ -1,0 +1,41 @@
+name: Vinted Sniper AI Automation
+
+on:
+  schedule:
+    # Co 15 minut od 8:00 do 22:00 czasu polskiego (6:00 - 20:00 UTC)
+    - cron: '*/15 6-20 * * *'
+  workflow_dispatch: # Umożliwia też ręczne odpalenie w panelu GitHub
+
+jobs:
+  run-sniper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Pobranie repozytorium
+        uses: actions/checkout@v4
+
+      - name: Konfiguracja Pythona
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalacja bibliotek i Playwrighta
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests playwright google-genai
+          playwright install --with-deps chromium
+
+      - name: Uruchomienie Vinted Snajpera
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py
+
+      - name: Zapis historii seen_items.json do repozytorium
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+          git add seen_items.json
+          git commit -m "Auto-update seen_items.json [skip ci]" || exit 0
+          git push

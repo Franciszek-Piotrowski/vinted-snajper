@@ -1,3 +1,4 @@
 #zapisujemy dane bota
 Bot_Token = "8567318459:AAGLPKXGJvcO7pt4dSn_OzXBJKxAEemf-Lk"
 Chat_ID = "8535729159"
+GEMINI_API_KEY = "AQ.Ab8RN6J0ld591h0GUF2dG8mHBmhWm7xXfqJPC0ivTiuZX1NWug"
