@@ -27,11 +27,10 @@ jobs:
 
       - name: Uruchomienie Vinted Snajpera
         env:
-          Bot_Token: ${{ secrets.Bot_Token }}
-          Chat_ID: ${{ secrets.Chat_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python main.py
-
       - name: Zapis historii seen_items.json do repozytorium
         run: |
           git config --global user.name "GitHub Action Bot"
