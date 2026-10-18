@@ -1,30 +1,37 @@
 # ai_agent.py
 import time
-from io import BytesIO
+import requests
 from config import GEMINI_API_KEY
 from google import genai
 from google.genai import types
-from PIL import Image
-import requests
-
-client = genai.Client(api_key=GEMINI_API_KEY)
-
-
-def download_image(url: str) -> Image.Image | None:
-    if not url:
-        return None
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            return Image.open(BytesIO(response.content))
-    except Exception as e:
-        print(f"⚠️ Nie udało się pobrać zdjęcia do analizy AI: {e}")
-    return None
 
 
 def analyze_deal_with_ai(
-    title: str, price: str, size: str, status: str, description: str, image_url: str
+    title: str,
+    price: str,
+    size: str,
+    status: str,
+    description: str = "Brak opisu",
+    image_url: str = None,
 ) -> tuple[bool, str]:
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "TWÓJ_GEMINI_API_KEY":
+        return False, "⚠️ Brak skonfigurowanego klucza Gemini."
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    contents = []
+
+    # Pobieranie zdjęcia
+    if image_url:
+        try:
+            img_response = requests.get(image_url, timeout=5)
+            if img_response.status_code == 200:
+                image_part = types.Part.from_bytes(
+                    data=img_response.content,
+                    mime_type="image/jpeg",
+                )
+                contents.append(image_part)
+        except Exception as e:
+            print(f"⚠️ Błąd pobierania zdjęcia do AI: {e}")
 
     prompt = f"""
 Jesteś bezwzględnym i doświadczonym ekspertem-resellerem odzieży markowej (specjalizacja: Napapijri Rainforest Winter / Skidoo). Twoim zadaniem jest ocenić, czy ta oferta z Vinted to opłacalny zakup do dalszej odsprzedaży z zyskiem.
@@ -76,35 +83,34 @@ W kolejnych linijkach napisz zwięzłą, konkretną analizę po polsku (3-4 zdan
 2. Oceń kolor i rozmiar.
 3. Podaj ocenę opłacalności zakupu w skali 1-10 i uzasadnij przewidywaną marżę.
 """
+    contents.append(prompt)
 
-    contents = [prompt]
-
-    pil_image = download_image(image_url)
-    if pil_image:
-        contents.append(pil_image)
-
+    # Używamy modelu z list z pełnym limitem 1500 zapytań/dzień
     max_retries = 3
-    for attempt in range(max_retries):
+    for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
                 model="gemini-3.5-flash-lite",
                 contents=contents,
             )
-            ai_response_text = response.text.strip()
 
-            should_send = "DECYZJA: TAK" in ai_response_text
-            return should_send, ai_response_text
+            analysis_text = response.text.strip()
+            should_send = "DECYZJA: TAK" in analysis_text
 
-        except Exception as e:
-            error_str = str(e)
-            print(f"⚠️ Błąd zapytania do Gemini (próba {attempt + 1}/{max_retries}): {error_str}")
-            if "503" in error_str or "overloaded" in error_str.lower():
-                if attempt < max_retries - 1:
-                    time.sleep(5 * (attempt + 1))
-                    continue
-            return (
-                False,
-                f"⚠️ Błąd komunikacji z AI (Gemini niedostępne): {error_str}",
+            clean_opinion = (
+                analysis_text.replace("DECYZJA: TAK", "")
+                .replace("DECYZJA: NIE", "")
+                .strip()
             )
 
-    return False, "⚠️ Błąd: Przekroczono limit prób połączenia z AI."
+            return should_send, clean_opinion
+
+        except Exception as e:
+            if "503" in str(e) and attempt < max_retries:
+                print(f"⚠️ Przeciążenie Gemini (503). Próba {attempt}/{max_retries}. Czekam 3 sekundy...")
+                time.sleep(3)
+            else:
+                print(f"❌ Błąd Gemini API: {e}")
+                return False, "🤖 AI: Nie udało się przeprowadzić analizy z powodu błędu API."
+
+    return False, "🤖 AI: Serwery Gemini niedostępne."
