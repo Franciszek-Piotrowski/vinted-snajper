@@ -68,7 +68,7 @@ def main():
                 caption=caption, photo_url=item.get("image_url")
             )
 
-            
+            new_items_found += 1
 
             time.sleep(3)
 
