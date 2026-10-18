@@ -10,7 +10,7 @@ def analyze_deal_with_ai(
     price: str,
     size: str,
     status: str,
-    description: str,
+    description: str = "Brak opisu",
     image_url: str = None,
 ) -> tuple[bool, str]:
     if not GEMINI_API_KEY or GEMINI_API_KEY == "TWÓJ_GEMINI_API_KEY":
