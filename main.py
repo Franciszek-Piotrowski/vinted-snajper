@@ -52,7 +52,6 @@ def main():
                 continue
 
             # 3. Jeśli DECYZJA: TAK, wysyłamy powiadomienie
-            new_items_found += 1
             print(f"🔥 AI ZAAKCEPTOWAŁO PEREŁKĘ: {item['title']} - {item['price']}")
 
             caption = (
@@ -69,11 +68,7 @@ def main():
                 caption=caption, photo_url=item.get("image_url")
             )
 
-            if new_items_found >= MAX_NOTIFICATIONS:
-                print(
-                    f"⚠️ Osiągnięto limit {MAX_NOTIFICATIONS} wysłanych perełek w tym cyklu."
-                )
-                break
+            
 
             time.sleep(3)
 
