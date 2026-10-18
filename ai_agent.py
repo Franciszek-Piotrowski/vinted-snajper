@@ -62,7 +62,7 @@ Pod spodem dodaj 2-3 krótkie zdania opinii (weryfikacja braku wad, oszacowany z
     for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
-                model="Gemini-3.5-Flash-Lite",  # <--- Dostępny i stabilny model z wysokim limitem
+                model="gemini-3.5-flash-lite",  # <--- Dostępny i stabilny model z wysokim limitem
                 contents=contents,
             )
 
