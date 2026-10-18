@@ -1,8 +1,8 @@
 # scraper.py
 from playwright.sync_api import sync_playwright
 
-# Twój URL z wyklikanymi filtrami z Vinted (sortowanie od najnowszych)
 TARGET_URL = "https://www.vinted.pl/catalog?search_text=kurtki%20napapijri&brand_ids[]=214&size_ids[]=208&size_ids[]=209&size_ids[]=210&status_ids[]=1&status_ids[]=2&status_ids[]=3&status_ids[]=4&search_id=4664424788&order=newest_first"
+
 
 def scrape_vinted_products(url: str) -> list[dict]:
     results = []
@@ -20,7 +20,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
         print("🌐 Otwieranie strony Vinted...")
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
-        # Obsługa banera RODO
+        # RODO
         try:
             cookie_btn = page.locator("#onetrust-accept-btn-handler")
             if cookie_btn.is_visible(timeout=3000):
@@ -33,7 +33,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
             '[data-testid="grid-item"], .feed-grid__item', timeout=15000
         )
 
-        # Lekkie przewinięcie strony pod Lazy Loading
+        # Lazy loading
         for _ in range(2):
             page.evaluate("window.scrollBy(0, 500)")
             page.wait_for_timeout(500)
@@ -44,9 +44,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
         for item in items:
             try:
                 # 1. Tytuł
-                title_element = item.locator(
-                    '[data-testid*="title"], p'
-                ).first
+                title_element = item.locator('[data-testid*="title"], p').first
                 title = (
                     title_element.inner_text().strip()
                     if title_element.count() and title_element.is_visible()
@@ -64,22 +62,24 @@ def scrape_vinted_products(url: str) -> list[dict]:
                 )
 
                 # 3. Rozmiar
-                size_element = item.locator('[data-testid*="size"]').first
-                size = (
-                    size_element.inner_text().strip()
-                    if size_element.count() and size_element.is_visible()
-                    else "Brak rozmiaru"
-                )
+                size_element = item.locator(
+                    '[data-testid*="size"], [data-testid*="subtitle"]'
+                ).first
+                size = "Brak rozmiaru"
+                if size_element.count() and size_element.is_visible():
+                    raw_size = size_element.inner_text().strip()
+                    if raw_size:
+                        size = raw_size
 
                 # 4. Stan
                 status_element = item.locator('[data-testid*="status"]').first
-                status = (
-                    status_element.inner_text().strip()
-                    if status_element.count() and status_element.is_visible()
-                    else "Brak stanu"
-                )
+                status = "Sprawdź w opisie"
+                if status_element.count() and status_element.is_visible():
+                    raw_status = status_element.inner_text().strip()
+                    if raw_status:
+                        status = raw_status
 
-                # 5. Opis / Podtytuł z kafelka
+                # 5. Opis z kafelka
                 description_element = item.locator(
                     '[data-testid*="description"], [data-testid*="subtitle"]'
                 ).first
@@ -89,7 +89,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
                     else "Brak opisu"
                 )
 
-                # 6. Czysty link do oferty
+                # 6. Czysty link
                 link_element = item.locator('a[href*="/items/"]').first
                 if not link_element.count():
                     link_element = item.locator('a:not([href*="/member/"])').first
@@ -106,7 +106,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
                     else f"https://www.vinted.pl{clean_path}"
                 )
 
-                # 7. Adres zdjęcia
+                # 7. Zdjęcie
                 img_element = item.locator("img").first
                 image_url = ""
                 if img_element.count():
@@ -140,10 +140,8 @@ def scrape_vinted_products(url: str) -> list[dict]:
 
 if __name__ == "__main__":
     oferty = scrape_vinted_products(TARGET_URL)
-
     print(f"\n✅ Pobrano {len(oferty)} ofert:")
     for i, o in enumerate(oferty[:5], 1):
         print(f"{i}. {o['title']} | Cena: {o['price']} | Rozmiar: {o['size']} | Stan: {o['status']}")
         print(f"   Opis: {o['description']}")
-        print(f"   Link: {o['url']}")
-        print(f"   Zdjęcie: {o['image_url']}\n")
+        print(f"   Link: {o['url']}\n")

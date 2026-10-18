@@ -44,25 +44,25 @@ PRZEANALIZUJ DANE, OPIS ORAZ ZDJĘCIE OFERTY:
 - Opis ogłoszenia: {description}
 
 RYGORYSTYCZNE KRYTERIA ODRZUCENIA (DECYZJA: NIE):
-1. WADY I USZKODZENIA: Jeśli w opisie, tytule lub stanie pojawią się informacje o jakiejkolwiek wadzie (dziura, plama, uszkodzony zamek, przetarcie itp.), AUTOMATYCZNIE ODRZUĆ OFERTĘ!
-2. TYP KURTKI: Szukamy kurtek kangurek/anorak (wkładanych przez głowę, preferowane ocieplane/puchowe/z futerkiem). Odrzuć zwykłe bluzy lub cienkie wiatrówki bez potencjału.
+1. WADY I USZKODZENIA: Jeśli w opisie, tytule lub stanie pojawią się informacje o jakiejkolwiek wadzie (dziura, plama, uszkodzony zamek, przetarcie, plamy pod pachami, zniszczona podszewka itp.), AUTOMATYCZNIE ODRZUĆ OFERTĘ!
+2. TYP KURTKI: Szukamy kurtek kangurek/anorak (wkładanych przez głowę, Napapijri Rainforest / Kido, ocieplane, puchowe lub z futerkiem na kapturze). Odrzuć zwykłe bluzy, polary lub cienkie wiatrówki bez potencjału.
 3. CENA: Sztywny limit ceny na Vinted to 250 zł. Idealna cena <= 180-200 zł.
 
 WYMAGANY FORMAT ODPOWIEDZI:
 Na samej górze umieść dokładnie jedną z deklaracji:
 DECYZJA: TAK (jeśli przedmiot jest w pełni sprawny, bez wad, okazyjny i zgodny z typem)
-DECYZJA: NIE (jeśli ma jakakolwiek wadę w opisie, jest za drogi lub niezgodny)
+DECYZJA: NIE (jeśli ma jakąkolwiek wadę w opisie, jest za drogi lub niezgodny)
 
 Pod spodem dodaj 2-3 krótkie zdania opinii (weryfikacja braku wad, oszacowany zysk, ocena 1-10 i emoji).
 """
     contents.append(prompt)
 
-    # Używamy oficjalnego modelu stabilnego gemini-2.0-flash / gemini-1.5-flash z obsługą 1500 zapytań/dzień
+    # Używamy modelu z list z pełnym limitem 1500 zapytań/dzień
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",  # <--- Dostępny i stabilny model z wysokim limitem
+                model="models/gemini-2.5-flash",
                 contents=contents,
             )
 
@@ -79,15 +79,10 @@ Pod spodem dodaj 2-3 krótkie zdania opinii (weryfikacja braku wad, oszacowany z
 
         except Exception as e:
             if "503" in str(e) and attempt < max_retries:
-                print(
-                    f"⚠️ Przeciążenie Gemini (503). Próba {attempt}/{max_retries}. Czekam 3 sekundy..."
-                )
+                print(f"⚠️ Przeciążenie Gemini (503). Próba {attempt}/{max_retries}. Czekam 3 sekundy...")
                 time.sleep(3)
             else:
                 print(f"❌ Błąd Gemini API: {e}")
-                return (
-                    False,
-                    "🤖 AI: Nie udało się przeprowadzić analizy z powodu błędu API.",
-                )
+                return False, "🤖 AI: Nie udało się przeprowadzić analizy z powodu błędu API."
 
     return False, "🤖 AI: Serwery Gemini niedostępne."
