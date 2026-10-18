@@ -20,6 +20,7 @@ def analyze_deal_with_ai(
     client = genai.Client(api_key=GEMINI_API_KEY)
     contents = []
 
+    # Pobieranie zdjęcia
     if image_url:
         try:
             img_response = requests.get(image_url, timeout=5)
@@ -50,18 +51,18 @@ RYGORYSTYCZNE KRYTERIA ODRZUCENIA (DECYZJA: NIE):
 WYMAGANY FORMAT ODPOWIEDZI:
 Na samej górze umieść dokładnie jedną z deklaracji:
 DECYZJA: TAK (jeśli przedmiot jest w pełni sprawny, bez wad, okazyjny i zgodny z typem)
-DECYZJA: NIE (jeśli ma jakąkolwiek wadę w opisie, jest za drogi lub niezgodny)
+DECYZJA: NIE (jeśli ma jakakolwiek wadę w opisie, jest za drogi lub niezgodny)
 
 Pod spodem dodaj 2-3 krótkie zdania opinii (weryfikacja braku wad, oszacowany zysk, ocena 1-10 i emoji).
 """
     contents.append(prompt)
 
-    # Ponawianie próby w przypadku błędu 503 (max 3 próby)
+    # Używamy oficjalnego modelu stabilnego gemini-2.0-flash / gemini-1.5-flash z obsługą 1500 zapytań/dzień
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash",  # <--- Dostępny i stabilny model z wysokim limitem
                 contents=contents,
             )
 
@@ -78,11 +79,15 @@ Pod spodem dodaj 2-3 krótkie zdania opinii (weryfikacja braku wad, oszacowany z
 
         except Exception as e:
             if "503" in str(e) and attempt < max_retries:
-                print(f"⚠️ Przeciążenie Gemini (503). Próba {attempt}/{max_retries}. Czekam 3 sekundy...")
+                print(
+                    f"⚠️ Przeciążenie Gemini (503). Próba {attempt}/{max_retries}. Czekam 3 sekundy..."
+                )
                 time.sleep(3)
             else:
                 print(f"❌ Błąd Gemini API: {e}")
-                # Zwracamy False, żeby nie przesyłać nieprzeanalizowanych ofert
-                return False, "🤖 AI: Nie udało się przeprowadzić analizy z powodu błędu API."
+                return (
+                    False,
+                    "🤖 AI: Nie udało się przeprowadzić analizy z powodu błędu API.",
+                )
 
     return False, "🤖 AI: Serwery Gemini niedostępne."
