@@ -1,9 +1,7 @@
 name: Vinted Sniper AI Automation
 
 on:
-  schedule:
-    # Co 15 minut od 8:00 do 22:00 czasu polskiego (6:00 - 20:00 UTC)
-    - cron: '*/15 6-20 * * *'
+  
   workflow_dispatch: # Umożliwia też ręczne odpalenie w panelu GitHub
 
 jobs:
