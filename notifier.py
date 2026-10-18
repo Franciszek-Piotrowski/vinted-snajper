@@ -1,14 +1,14 @@
 # notifier.py
 import requests
-from config import BOT_TOKEN, CHAT_ID
+from config import Bot_Token, Chat_ID
 
 
 def send_telegram_notification(caption: str, photo_url: str = None) -> bool:
     """Wysyła post ze zdjęciem (sendPhoto) lub awaryjnie sam tekst (sendMessage)."""
     if photo_url:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+        url = f"https://api.telegram.org/bot{Bot_Token}/sendPhoto"
         payload = {
-            "chat_id": CHAT_ID,
+            "chat_id": Chat_ID,
             "photo": photo_url,
             "caption": caption,
             "parse_mode": "HTML",
@@ -25,7 +25,7 @@ def send_telegram_notification(caption: str, photo_url: str = None) -> bool:
     # Awaryjne wysłanie samego tekstu, jeśli brak zdjęcia lub Vinted zablokowało bezpośredni link
     url_text = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload_text = {
-        "chat_id": CHAT_ID,
+        "chat_id": Chat_ID,
         "text": caption,
         "parse_mode": "HTML",
         "link_preview_options": {"is_disabled": True},
