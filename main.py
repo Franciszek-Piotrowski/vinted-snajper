@@ -31,25 +31,26 @@ def main():
                 image_url=item.get("image_url"),
             )
 
-            # ZABEZPIECZENIE: Jeśli AI wywaliło błąd API, NIE dodajemy linku do bazy.
+            # Jeśli błąd API, NIE dodajemy do bazy (spróbuje za 15 minut)
             if "Błąd" in ai_opinion or "niedostępne" in ai_opinion:
-                print(f"⚠️ Pomięto zapis w bazie dla {item['title']} z powodu błędu AI. Spróbuję w kolejnym cyklu.")
+                print(f"⚠️ Pominięto zapis w bazie dla {item['title']} z powodu błędu API. Spróbuję za 15 min.")
                 continue
 
-            # Jeśli analiza przebiegła pomyślnie, zapisujemy link do bazy
+            # Zapisujemy do bazy jako przeanalizowaną
             seen_items.add(url)
 
-            # 2. Jeśli AI odrzuciło ofertę (DECYZJA: NIE), po cichu przechodzimy dalej
+            # 2. Jeśli DECYZJA: NIE, przechodzimy dalej
             if not should_send:
                 print(f"⛔ AI odrzuciło ofertę jako nieopłacalną/niezgodną: {item['title']}")
+                time.sleep(3)  # Bezpieczna, krótka pauza 3 sekundy pod limit 15 RPM
                 continue
 
-            # 3. Jeśli AI zaakceptowało ofertę (DECYZJA: TAK), wysyłamy powiadomienie
+            # 3. Jeśli DECYZJA: TAK, wysyłamy powiadomienie
             new_items_found += 1
-            print(f"🔥 AI ZAAKCEPTOWAŁO PERAŁKĘ: {item['title']} - {item['price']}")
+            print(f"🔥 AI ZAAKCEPTOWAŁO PEREŁKĘ: {item['title']} - {item['price']}")
 
             caption = (
-                f"🔥 <b>PERAŁKA Z VINTED (Zatwierdzona przez AI)!</b>\n\n"
+                f"🔥 <b>PEREŁKA Z VINTED (Zatwierdzona przez AI)!</b>\n\n"
                 f"📌 <b>Przedmiot:</b> {item['title']}\n"
                 f"💰 <b>Cena:</b> {item['price']}\n"
                 f"📏 <b>Rozmiar:</b> {item.get('size', 'Brak')}\n"
@@ -66,14 +67,14 @@ def main():
                 print(f"⚠️ Osiągnięto limit {MAX_NOTIFICATIONS} wysłanych perełek w tym cyklu.")
                 break
 
-            time.sleep(5)
+            time.sleep(3)  # Bezpieczna, krótka pauza 3 sekundy
 
     if new_items_found > 0:
         save_seen_items(seen_items)
         print(f"✅ Zakończono! Wysłano {new_items_found} selektywnych perełek.")
     else:
         save_seen_items(seen_items)
-        print("ℹ️ Baza zaktualizowana. Brak nowych ofert spełniających rygorystyczne kryteria AI.")
+        print("ℹ️ Baza zaktualizowana. Brak nowych ofert spełniających kryteria AI.")
 
 
 if __name__ == "__main__":
