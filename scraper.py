@@ -2,7 +2,7 @@
 from playwright.sync_api import sync_playwright
 
 # Twój URL z wyklikanymi filtrami z Vinted (np. z sortowaniem od najnowszych)
-TARGET_URL = "https://www.vinted.pl/catalog?search_text=kurtki%20napapijri&brand_ids[]=214&size_ids[]=208&size_ids[]=209&size_ids[]=210&status_ids[]=1&status_ids[]=2&status_ids[]=3&search_id=4664424788&order=newest_first"
+TARGET_URL = "https://www.vinted.pl/catalog?search_text=kurtki%20napapijri&brand_ids[]=214&size_ids[]=208&size_ids[]=209&size_ids[]=210&status_ids[]=1&status_ids[]=2&status_ids[]=3&status_ids[]=4&search_id=4664424788&order=newest_first&page=1&time=1792318093"
 
 
 def scrape_vinted_products(url: str) -> list[dict]:
