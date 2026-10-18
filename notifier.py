@@ -23,7 +23,7 @@ def send_telegram_notification(caption: str, photo_url: str = None) -> bool:
             print(f"⚠️ Błąd wysyłania zdjęcia: {e}")
 
     # Awaryjne wysłanie samego tekstu, jeśli brak zdjęcia lub Vinted zablokowało bezpośredni link
-    url_text = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url_text = f"https://api.telegram.org/bot{Bot_Token}/sendMessage"
     payload_text = {
         "chat_id": Chat_ID,
         "text": caption,
