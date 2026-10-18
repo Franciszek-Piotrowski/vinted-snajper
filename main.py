@@ -1,4 +1,3 @@
-# main.py
 import time
 from ai_agent import analyze_deal_with_ai
 from database import load_seen_items, save_seen_items
@@ -16,10 +15,13 @@ def main():
     new_items_found = 0
 
     for item in current_items:
-        url = item["url"]
+        item_id = item["id"]
 
-        if url not in seen_items:
-            print(f"🔎 Analizowanie nowej oferty przez AI: {item['title']}...")
+        # Sprawdzamy po unikalnym ID zamiast po URL
+        if item_id not in seen_items:
+            print(
+                f"🔎 Analizowanie nowej oferty przez AI (ID: {item_id}): {item['title']}..."
+            )
 
             # 1. Agent Gemini ocenia ofertę
             should_send, ai_opinion = analyze_deal_with_ai(
@@ -31,22 +33,25 @@ def main():
                 image_url=item.get("image_url"),
             )
 
-            # Jeśli błąd API, NIE dodajemy do bazy (spróbuje za 15 minut)
+            # Jeśli błąd API, NIE dodajemy ID do bazy (spróbuje za 15 minut)
             if "Błąd" in ai_opinion or "niedostępne" in ai_opinion:
-                print(f"⚠️ Pominięto zapis w bazie dla {item['title']} z powodu błędu API. Spróbuję za 15 min.")
+                print(
+                    f"⚠️ Pominięto zapis w bazie dla ID {item_id} z powodu błędu API. Spróbuję za 15 min."
+                )
                 continue
 
-            # Zapisujemy do bazy jako przeanalizowaną
-            seen_items.add(url)
+            # Zapisujemy ID przedmiotu do bazy jako przeanalizowane
+            seen_items.add(item_id)
 
             # 2. Jeśli DECYZJA: NIE, przechodzimy dalej
             if not should_send:
-                print(f"⛔ AI odrzuciło ofertę jako nieopłacalną/niezgodną: {item['title']}")
-                time.sleep(3)  # Bezpieczna, krótka pauza 3 sekundy pod limit 15 RPM
+                print(
+                    f"⛔ AI odrzuciło ofertę jako nieopłacalną/niezgodną: {item['title']}"
+                )
+                time.sleep(3)
                 continue
 
             # 3. Jeśli DECYZJA: TAK, wysyłamy powiadomienie
-            new_items_found += 1
             print(f"🔥 AI ZAAKCEPTOWAŁO PEREŁKĘ: {item['title']} - {item['price']}")
 
             caption = (
@@ -56,18 +61,16 @@ def main():
                 f"📏 <b>Rozmiar:</b> {item.get('size', 'Brak')}\n"
                 f"✨ <b>Stan:</b> {item.get('status', 'Brak')}\n\n"
                 f"🧠 <b>Ocena i Wyliczenia Gemini:</b>\n{ai_opinion}\n\n"
-                f"🔗 <a href='{url}'>Kliknij tutaj, aby przejść do oferty</a>"
+                f"🔗 <a href='{item['url']}'>Kliknij tutaj, aby przejść do oferty</a>"
             )
 
             send_telegram_notification(
                 caption=caption, photo_url=item.get("image_url")
             )
 
-            if new_items_found >= MAX_NOTIFICATIONS:
-                print(f"⚠️ Osiągnięto limit {MAX_NOTIFICATIONS} wysłanych perełek w tym cyklu.")
-                break
+            
 
-            time.sleep(3)  # Bezpieczna, krótka pauza 3 sekundy
+            time.sleep(3)
 
     if new_items_found > 0:
         save_seen_items(seen_items)
