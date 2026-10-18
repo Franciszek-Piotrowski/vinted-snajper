@@ -1,3 +1,4 @@
+# main.py
 import time
 from ai_agent import analyze_deal_with_ai
 from database import load_seen_items, save_seen_items
@@ -20,7 +21,7 @@ def main():
         if url not in seen_items:
             print(f"🔎 Analizowanie nowej oferty przez AI: {item['title']}...")
 
-            # Przekazujemy komplet parametrów (w tym dodany description):
+            # 1. Agent Gemini ocenia ofertę
             should_send, ai_opinion = analyze_deal_with_ai(
                 title=item["title"],
                 price=item["price"],
@@ -30,16 +31,20 @@ def main():
                 image_url=item.get("image_url"),
             )
 
-            # Zapamiętujemy link w bazie niezależnie od tego, czy oferta przejdzie selekcję
-            seen_items.add(url)
-
-            # Jeśli AI odrzuciło ofertę (DECYZJA: NIE), pomijamy wysyłanie
-            if not should_send:
-                print(
-                    f"⛔ AI odrzuciło ofertę jako nieopłacalną/niezgodną: {item['title']}"
-                )
+            # ZABEZPIECZENIE: Jeśli AI wywaliło błąd API, NIE dodajemy linku do bazy.
+            if "Błąd" in ai_opinion or "niedostępne" in ai_opinion:
+                print(f"⚠️ Pomięto zapis w bazie dla {item['title']} z powodu błędu AI. Spróbuję w kolejnym cyklu.")
                 continue
 
+            # Jeśli analiza przebiegła pomyślnie, zapisujemy link do bazy
+            seen_items.add(url)
+
+            # 2. Jeśli AI odrzuciło ofertę (DECYZJA: NIE), po cichu przechodzimy dalej
+            if not should_send:
+                print(f"⛔ AI odrzuciło ofertę jako nieopłacalną/niezgodną: {item['title']}")
+                continue
+
+            # 3. Jeśli AI zaakceptowało ofertę (DECYZJA: TAK), wysyłamy powiadomienie
             new_items_found += 1
             print(f"🔥 AI ZAAKCEPTOWAŁO PERAŁKĘ: {item['title']} - {item['price']}")
 
@@ -58,9 +63,7 @@ def main():
             )
 
             if new_items_found >= MAX_NOTIFICATIONS:
-                print(
-                    f"⚠️ Osiągnięto limit {MAX_NOTIFICATIONS} wysłanych perełek w tym cyklu."
-                )
+                print(f"⚠️ Osiągnięto limit {MAX_NOTIFICATIONS} wysłanych perełek w tym cyklu.")
                 break
 
             time.sleep(5)
@@ -70,7 +73,7 @@ def main():
         print(f"✅ Zakończono! Wysłano {new_items_found} selektywnych perełek.")
     else:
         save_seen_items(seen_items)
-        print("ℹ️ Brak nowych ofert spełniających rygorystyczne kryteria AI.")
+        print("ℹ️ Baza zaktualizowana. Brak nowych ofert spełniających rygorystyczne kryteria AI.")
 
 
 if __name__ == "__main__":
