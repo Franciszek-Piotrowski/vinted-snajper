@@ -27,8 +27,8 @@ jobs:
 
       - name: Uruchomienie Vinted Snajpera
         env:
-          BOT_TOKEN: ${{ secrets.Bot_Token }}
-          CHAT_ID: ${{ secrets.Chat_ID }}
+          Bot_Token: ${{ secrets.Bot_Token }}
+          Chat_ID: ${{ secrets.Chat_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
 
