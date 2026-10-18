@@ -1,9 +1,8 @@
 # scraper.py
 from playwright.sync_api import sync_playwright
 
-# Twój URL z wyklikanymi filtrami z Vinted (np. z sortowaniem od najnowszych)
-TARGET_URL = "https://www.vinted.pl/catalog?search_text=kurtki%20napapijri&brand_ids[]=214&size_ids[]=208&size_ids[]=209&size_ids[]=210&status_ids[]=1&status_ids[]=2&status_ids[]=3&status_ids[]=4&search_id=4664424788&order=newest_first&page=1&time=1792318093"
-
+# Twój URL z wyklikanymi filtrami z Vinted (sortowanie od najnowszych)
+TARGET_URL = "https://www.vinted.pl/catalog?search_text=kurtki%20napapijri&brand_ids[]=214&size_ids[]=208&size_ids[]=209&size_ids[]=210&status_ids[]=1&status_ids[]=2&status_ids[]=3&status_ids[]=4&search_id=4664424788&order=newest_first"
 
 def scrape_vinted_products(url: str) -> list[dict]:
     results = []
@@ -29,12 +28,12 @@ def scrape_vinted_products(url: str) -> list[dict]:
         except Exception:
             pass
 
-        # Czekamy na załadowanie kafelków
+        # Czekamy na kafelki
         page.wait_for_selector(
             '[data-testid="grid-item"], .feed-grid__item', timeout=15000
         )
 
-        # Lekkie przewinięcie strony, aby Vinted wczytało komplet danych
+        # Lekkie przewinięcie strony pod Lazy Loading
         for _ in range(2):
             page.evaluate("window.scrollBy(0, 500)")
             page.wait_for_timeout(500)
@@ -46,11 +45,11 @@ def scrape_vinted_products(url: str) -> list[dict]:
             try:
                 # 1. Tytuł
                 title_element = item.locator(
-                    '[data-testid*="title"], [data-testid*="description"], p'
+                    '[data-testid*="title"], p'
                 ).first
                 title = (
                     title_element.inner_text().strip()
-                    if title_element.is_visible()
+                    if title_element.count() and title_element.is_visible()
                     else "Brak tytułu"
                 )
 
@@ -60,7 +59,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
                 ).first
                 price = (
                     price_element.inner_text().strip()
-                    if price_element.is_visible()
+                    if price_element.count() and price_element.is_visible()
                     else "Brak ceny"
                 )
 
@@ -80,7 +79,17 @@ def scrape_vinted_products(url: str) -> list[dict]:
                     else "Brak stanu"
                 )
 
-                # 5. Link – wyciągamy czysty link do przedmiotu (omijamy profile /member/)
+                # 5. Opis / Podtytuł z kafelka
+                description_element = item.locator(
+                    '[data-testid*="description"], [data-testid*="subtitle"]'
+                ).first
+                description = (
+                    description_element.inner_text().strip()
+                    if description_element.count() and description_element.is_visible()
+                    else "Brak opisu"
+                )
+
+                # 6. Czysty link do oferty
                 link_element = item.locator('a[href*="/items/"]').first
                 if not link_element.count():
                     link_element = item.locator('a:not([href*="/member/"])').first
@@ -90,7 +99,6 @@ def scrape_vinted_products(url: str) -> list[dict]:
                 if not raw_link or "/items/" not in raw_link:
                     continue
 
-                # Oczyszczamy link z parametrów pytajnika (tworzymy czysty link kanoniczny)
                 clean_path = raw_link.split("?")[0]
                 full_link = (
                     clean_path
@@ -98,7 +106,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
                     else f"https://www.vinted.pl{clean_path}"
                 )
 
-                # 6. Zdjęcie – wyciąganie URL grafiki z uwzględnieniem Lazy Loadingu
+                # 7. Adres zdjęcia
                 img_element = item.locator("img").first
                 image_url = ""
                 if img_element.count():
@@ -117,6 +125,7 @@ def scrape_vinted_products(url: str) -> list[dict]:
                         "price": price,
                         "size": size,
                         "status": status,
+                        "description": description,
                         "url": full_link,
                         "image_url": image_url,
                     }
@@ -135,5 +144,6 @@ if __name__ == "__main__":
     print(f"\n✅ Pobrano {len(oferty)} ofert:")
     for i, o in enumerate(oferty[:5], 1):
         print(f"{i}. {o['title']} | Cena: {o['price']} | Rozmiar: {o['size']} | Stan: {o['status']}")
-        print(f"   Czysty Link: {o['url']}")
+        print(f"   Opis: {o['description']}")
+        print(f"   Link: {o['url']}")
         print(f"   Zdjęcie: {o['image_url']}\n")
