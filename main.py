@@ -1,54 +1,54 @@
+# main.py
 import time
 from database import load_seen_items, save_seen_items
-from notifier import send_telegram_message
+from notifier import send_telegram_notification
 from scraper import TARGET_URL, scrape_vinted_products
+
+MAX_NOTIFICATIONS = 3  # Limit powiadomień na jedno uruchomienie
 
 
 def main():
     print("🚀 Uruchamianie Vinted Snajpera...")
 
-    # 1. Wczytujemy z bazy linki, które już wcześniej widzieliśmy
     seen_items = load_seen_items()
-    print(f"Baza pamięta obecnie {len(seen_items)} wcześniej sprawdzonych ofert.")
-
-    # 2. Pobieramy aktualne oferty z Vinted
     current_items = scrape_vinted_products(TARGET_URL)
     new_items_found = 0
 
-    # 3. Przeglądamy pobrane oferty
     for item in current_items:
         url = item["url"]
 
-        # Jeśli oferta jest nowa (nie ma jej w bazie seen_items)
         if url not in seen_items:
-            new_items_found += 1
-            print(f"🔥 Znaleziono nową okazję: {item['title']} - {item['price']}")
+            if new_items_found >= MAX_NOTIFICATIONS:
+                print(f"⚠️ Osiągnięto limit {MAX_NOTIFICATIONS} powiadomień. Reszta trafia do bazy po cichu.")
+                seen_items.add(url)
+                continue
 
-            # Przygotowujemy treść wiadomości
-            message = (
+            new_items_found += 1
+            print(f"🔥 Nowa okazja: {item['title']} - {item['price']}")
+
+            # Budujemy treść podpisu pod zdjęciem
+            caption = (
                 f"🔥 <b>NOWA OFERTA VINTED!</b>\n\n"
                 f"📌 <b>Przedmiot:</b> {item['title']}\n"
-                f"💰 <b>Cena:</b> {item['price']}\n\n"
+                f"💰 <b>Cena:</b> {item['price']}\n"
+                f"📏 <b>Rozmiar:</b> {item.get('size', 'Brak')}\n"
+                f"✨ <b>Stan:</b> {item.get('status', 'Brak')}\n\n"
                 f"🔗 <a href='{url}'>Kliknij tutaj, aby przejść do oferty</a>"
             )
 
-            # Wysyłamy powiadomienie na Telegrama
-            send_telegram_message(message)
-
-            # Zapamiętujemy link w bazie, żeby nie wysłać go drugi raz
+            # Wysyłamy zdjęcie wraz z podpisem
+            send_telegram_notification(caption=caption, photo_url=item.get("image_url"))
             seen_items.add(url)
 
-            # Krótka pauza między powiadomieniami
+            # 5 sekund przerwy, aby serwery nie nakładały blokad
+            print("⏳ Czekam 5 sekund przed kolejnym powiadomieniem...")
             time.sleep(5)
 
-    # 4. Zapisujemy zaktualizowaną bazę do pliku JSON
     if new_items_found > 0:
         save_seen_items(seen_items)
-        print(
-            f"✅ Znaleziono i wysłano {new_items_found} nowych ofert. Baza zaktualizowana."
-        )
+        print(f"✅ Zakończono! Wysłano {new_items_found} nowych powiadomień ze zdjęciami.")
     else:
-        print("ℹ️ Brak nowych ofert na Vinted.")
+        print("ℹ️ Brak nowych ofert.")
 
 
 if __name__ == "__main__":
