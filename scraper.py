@@ -31,9 +31,13 @@ def scrape_vinted_products(url: str) -> list[dict]:
             pass
 
         # Czekamy na kafelki
-        page.wait_for_selector(
-            '[data-testid="grid-item"], .feed-grid__item', timeout=15000
-        )
+        # Zamiast bezpośredniego wait_for_selector:
+        try:
+            page.wait_for_selector('[data-testid="grid-item"], .feed-grid__item', timeout=20000)
+        except Exception as e:
+            print("⚠️ Vinted nie odpowiedziało w czasie (mógł wystąpić przerwany serwis nocny). Pomijam to uruchomienie.")
+            browser.close()
+            return []  # Zwraca pustą listę ofert, skrypt kończy się sukcesem bez błędu
 
         # Przewinięcie pod Lazy Loading
         for _ in range(2):
