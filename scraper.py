@@ -4,10 +4,26 @@ import sys
 from collections.abc import Collection
 
 from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import Locator, Page, sync_playwright
 
 # Twój URL z wyklikanymi filtrami z Vinted (sortowanie od najnowszych)
 TARGET_URL = "https://www.vinted.pl/catalog?search_text=kurtki%20napapijri&brand_ids[]=214&size_ids[]=208&size_ids[]=209&size_ids[]=210&status_ids[]=1&status_ids[]=2&status_ids[]=3&status_ids[]=4&search_id=4664424788&order=newest_first"
+
+
+def _wait_for_listing_grid(page: Page) -> bool:
+    try:
+        page.wait_for_selector(
+            '[data-testid="grid-item"], .feed-grid__item',
+            timeout=20000,
+        )
+    except PlaywrightTimeoutError:
+        print(
+            "ℹ️ Lista ofert nie pojawiła się w ciągu 20 sekund; zwracam pustą listę. "
+            "Może to oznaczać brak wyników albo problem z załadowaniem strony."
+        )
+        return False
+    return True
 
 
 def _visible_text(locator: Locator, default: str) -> str:
@@ -93,13 +109,8 @@ def scrape_vinted_products(
             if cookie_btn.count() and cookie_btn.is_visible():
                 cookie_btn.click()
 
-            try:
-                page.wait_for_selector(
-                    '[data-testid="grid-item"], .feed-grid__item',
-                    timeout=20000,
-                )
-            except PlaywrightError as e:
-                raise RuntimeError("Vinted nie załadowało listy ofert.") from e
+            if not _wait_for_listing_grid(page):
+                return []
 
             for _ in range(2):
                 page.evaluate("window.scrollBy(0, 500)")
