@@ -1,28 +1,59 @@
-# Vinted Sniper AI 🎯🤖
+# Vinted Sniper AI
 
-An automated, hands-free Vinted deal-sniper designed for finding and selecting reselling opportunities in branded apparel. The project leverages **Google Gemini 3.5 Flash Lite** multimodal AI to autonomously evaluate listings based on market profitability and potential profit margins.
+Bot monitoruje nowe oferty Napapijri z Vinted, analizuje ich zdjęcia i dane przez Gemini oraz wysyła wybrane oferty na Telegram.
 
-*Note: Currently optimized for tracking Napapijri jackets, but designed with a modular architecture that can be easily adapted for any brand or clothing category.*
+## Wymagania
 
-## 🚀 Architecture & Tech Stack
+- Python 3.11
+- Klucz API Gemini
+- Bot Telegrama oraz identyfikator czatu
+- Chromium zainstalowany przez Playwright
 
-- **Language:** Python 3.11
-- **Scraping & Automation:** Playwright (headless browser automation)
-- **AI & Computer Vision:** Google GenAI SDK (`models/gemini-3.5-flash-lite`)
-- **Notifications:** Telegram Bot API
-- **CI/CD & Cloud Execution:** GitHub Actions (CRON schedule workflow)
+## Uruchomienie lokalne
 
-## 💡 How It Works
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+playwright install chromium
+```
 
-1. **Scraping:** Periodically triggered scripts fetch the latest Vinted listings based on parameterized URL filters, extracting unique item IDs, titles, prices, descriptions, and cover image URLs.
-2. **AI Gatekeeper (Gemini Multimodal):** Every new listing is analyzed by the Gemini model. The AI simultaneously evaluates text (title, description, condition, size) and visual data (identifying anorak cut, presence of fleece lining, verifying condition, and checking for flaws or authenticity issues).
-3. **Smart Filtering:** Listings with low margins, bright/unpopular colorways, summer windbreakers, or basic fleece sweaters are automatically rejected (`DECYZJA: NIE`).
-4. **Instant Alerts:** Upon approval (`DECYZJA: TAK`), the bot instantly sends a Telegram notification containing the listing photo, margin analysis, value score (1-10), and a direct link to buy.
-5. **State Tracking:** Unique IDs of processed items are saved in `seen_items.json` and automatically synced back to the repository via GitHub Actions to prevent duplicate notifications.
+Ustaw zmienne środowiskowe `GEMINI_API_KEY`, `BOT_TOKEN` i `CHAT_ID`, a następnie uruchom:
 
-## ⚙️ Local Setup
+```bash
+python main.py
+```
 
-1. Clone the repository:
+Jeśli nie aktywujesz środowiska poleceniem `source .venv/bin/activate`, uruchom program bezpośrednio przez `.venv/bin/python main.py`. W VS Code ustaw interpreter workspace na `.venv/bin/python`.
+
+Historia przetworzonych ofert jest przechowywana w `seen_items.json`; zapis zachowuje maksymalnie 150 najnowszych ID.
+
+## GitHub Actions
+
+Workflow `.github/workflows/vinted_sniper.yml` obsługuje ręczne uruchomienie przez `workflow_dispatch`. Sekrety `GEMINI_API_KEY`, `BOT_TOKEN` i `CHAT_ID` ustaw w **Settings → Secrets and variables → Actions**. Job zapisuje zmiany `seen_items.json` z powrotem do repozytorium, a błędy zapisu/push nie są ukrywane. Zależności i przeglądarka Playwright są buforowane, żeby skrócić kolejne uruchomienia.
+
+## Wyzwalanie co 5 minut tylko w dzień
+
+Repozytorium zawiera Cloudflare Worker, który sprawdza czas `Europe/Warsaw` i uruchamia workflow tylko od 08:00 do 21:55. Worker jest tylko zegarem — bot i przeglądarka nadal działają w GitHub Actions. GitHub może opóźnić start runnera, więc harmonogram nie gwarantuje dokładności co do minuty.
+
+1. Utwórz bezpłatne konto Cloudflare i zainstaluj Node.js/npm na komputerze.
+2. Utwórz fine-grained personal access token GitHuba ograniczony do tego repozytorium z uprawnieniem **Actions: Read and write**. Nie zapisuj tokena w repozytorium.
+3. Zainstaluj Wrangler i zaloguj się:
+
    ```bash
-   git clone [https://github.com/Franciszek-Piotrowski/vinted-snajper.git](https://github.com/Franciszek-Piotrowski/vinted-snajper.git)
-   cd vinted-snajper
+   npm install --global wrangler
+   wrangler login
+   ```
+
+4. Z katalogu repozytorium wdroż Workera, a następnie dodaj token jako sekret:
+
+   ```bash
+   wrangler deploy
+   wrangler secret put GH_TOKEN
+   ```
+
+   Worker będzie raportował brak tokena do czasu dodania sekretu. Wklej token wyłącznie w interaktywnym promptcie `wrangler secret put`; nie przekazuj go jako argumentu polecenia ani nie umieszczaj w pliku.
+5. W Cloudflare sprawdź, czy Worker `lively-sky-b286` ma aktywny Cron Trigger `*/5 * * * *`.
+6. Podgląd **Visit/Preview** sprawdza tylko status HTTP Workera — nie wywołuje harmonogramu. Test zdarzenia Cron uruchom w Cloudflare z panelu Workera; potwierdź wtedy nowy run w **Actions** w GitHubie. Gdy potwierdzisz poprawne wyzwalanie, wyłącz dotychczasowy zewnętrzny kliker, żeby nie uruchamiać workflow podwójnie.
+
+Worker wywołuje `workflow_dispatch` dla gałęzi `main`. Cron działa w UTC, ale Worker sam przelicza czas na `Europe/Warsaw`, więc uwzględnia zmianę czasu letniego. Równoległe przebiegi GitHub Actions są serializowane przez grupę `concurrency`.

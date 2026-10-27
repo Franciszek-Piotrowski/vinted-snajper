@@ -1,177 +1,200 @@
 # scraper.py
 import re
-from playwright.sync_api import sync_playwright
+from collections.abc import Collection
+
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Locator, Page, sync_playwright
 
 # Twój URL z wyklikanymi filtrami z Vinted (sortowanie od najnowszych)
 TARGET_URL = "https://www.vinted.pl/catalog?search_text=kurtki%20napapijri&brand_ids[]=214&size_ids[]=208&size_ids[]=209&size_ids[]=210&status_ids[]=1&status_ids[]=2&status_ids[]=3&status_ids[]=4&search_id=4664424788&order=newest_first"
 
 
-def scrape_vinted_products(url: str) -> list[dict]:
-    results = []
+def _visible_text(locator: Locator, default: str) -> str:
+    if locator.count() and locator.is_visible():
+        value = locator.inner_text().strip()
+        if value:
+            return value
+    return default
+
+
+def _detail_text(page: Page, selectors: tuple[str, ...]) -> str:
+    for selector in selectors:
+        locator = page.locator(selector).first
+        if locator.count() and locator.is_visible():
+            value = locator.inner_text().strip()
+            if value:
+                return value
+    return ""
+
+
+def scrape_vinted_products(
+    url: str,
+    known_item_ids: Collection[str] = (),
+) -> list[dict[str, str]]:
+    results: list[dict[str, str]] = []
+    scraped_item_ids: set[str] = set()
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 900},
-        )
-
-        page = context.new_page()
-
-        print("🌐 Otwieranie strony Vinted...")
-        page.goto(url, wait_until="domcontentloaded", timeout=60000)
-
-        # Obsługa banera RODO
         try:
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 900},
+            )
+            page = context.new_page()
+            print("🌐 Otwieranie strony Vinted...")
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+
             cookie_btn = page.locator("#onetrust-accept-btn-handler")
-            if cookie_btn.is_visible(timeout=3000):
+            if cookie_btn.count() and cookie_btn.is_visible():
                 cookie_btn.click()
-        except Exception:
-            pass
 
-        # Czekamy na kafelki
-        # Zamiast bezpośredniego wait_for_selector:
-        try:
-            page.wait_for_selector('[data-testid="grid-item"], .feed-grid__item', timeout=20000)
-        except Exception as e:
-            print("⚠️ Vinted nie odpowiedziało w czasie (mógł wystąpić przerwany serwis nocny). Pomijam to uruchomienie.")
-            browser.close()
-            return []  # Zwraca pustą listę ofert, skrypt kończy się sukcesem bez błędu
-
-        # Przewinięcie pod Lazy Loading
-        for _ in range(2):
-            page.evaluate("window.scrollBy(0, 500)")
-            page.wait_for_timeout(500)
-
-        items = page.locator('[data-testid="grid-item"], .feed-grid__item').all()
-        print(f"Znaleziono {len(items)} elementów na stronie. Wyciąganie danych...")
-
-        for item in items:
             try:
-                # 1. Wyciąganie czystego linku i unikalnego ID
-                link_element = item.locator('a[href*="/items/"]').first
-                if not link_element.count():
-                    link_element = item.locator('a:not([href*="/member/"])').first
+                page.wait_for_selector(
+                    '[data-testid="grid-item"], .feed-grid__item',
+                    timeout=20000,
+                )
+            except PlaywrightError as e:
+                raise RuntimeError("Vinted nie załadowało listy ofert.") from e
 
-                raw_link = link_element.get_attribute("href") if link_element else ""
+            for _ in range(2):
+                page.evaluate("window.scrollBy(0, 500)")
+                page.wait_for_timeout(500)
 
-                if not raw_link or "/items/" not in raw_link:
-                    continue
+            items = page.locator(
+                '[data-testid="grid-item"], .feed-grid__item'
+            ).all()
+            print(f"Znaleziono {len(items)} elementów na stronie. Wyciąganie danych...")
 
-                # Wyciągamy sam numeryczny ID z linku (np. z /items/123456789-kurtka wyciąga '123456789')
-                item_id = ""
-                match = re.search(r"/items/(\d+)", raw_link)
-                if match:
+            for item in items:
+                try:
+                    link_element = item.locator('a[href*="/items/"]').first
+                    if not link_element.count():
+                        link_element = item.locator(
+                            'a:not([href*="/member/"])'
+                        ).first
+
+                    raw_link = link_element.get_attribute("href") if link_element else ""
+                    if not raw_link or "/items/" not in raw_link:
+                        continue
+
+                    match = re.search(r"/items/(\d+)", raw_link)
+                    if not match:
+                        continue
                     item_id = match.group(1)
-
-                if not item_id:
-                    continue  # Pomijamy, jeśli nie udało się wyciągnąć numeru ID
-
-                clean_path = raw_link.split("?")[0]
-                full_link = (
-                    clean_path
-                    if clean_path.startswith("http")
-                    else f"https://www.vinted.pl{clean_path}"
-                )
-
-                # 2. Tytuł
-                title_element = item.locator('[data-testid*="title"], p').first
-                title = (
-                    title_element.inner_text().strip()
-                    if title_element.count() and title_element.is_visible()
-                    else "Brak tytułu"
-                )
-
-                # 3. Cena
-                price_element = item.locator(
-                    '[data-testid="total-combined-price"], [data-testid*="price"]'
-                ).first
-                price = (
-                    price_element.inner_text().strip()
-                    if price_element.count() and price_element.is_visible()
-                    else "Brak ceny"
-                )
-
-                # 4. Rozmiar
-                size_element = item.locator(
-                    '[data-testid*="size"], [data-testid*="subtitle"]'
-                ).first
-                size = "Brak rozmiaru"
-                if size_element.count() and size_element.is_visible():
-                    raw_size = size_element.inner_text().strip()
-                    if raw_size:
-                        size = raw_size
-
-                # 5. Stan
-                status_element = item.locator('[data-testid*="status"]').first
-                status = "Sprawdź w opisie"
-                if status_element.count() and status_element.is_visible():
-                    raw_status = status_element.inner_text().strip()
-                    if raw_status:
-                        status = raw_status
-
-                # 6. Opis z kafelka
-                description_element = item.locator(
-                    '[data-testid*="description"], [data-testid*="subtitle"]'
-                ).first
-                description = (
-                    description_element.inner_text().strip()
-                    if description_element.count() and description_element.is_visible()
-                    else "Brak opisu"
-                )
-
-                # 7. Zdjęcie (zabezpieczone przed filtrowaniem awatarów profilowych)
-                image_url = ""
-                img_elements = item.locator(
-                    'img[src*="/items/"], img[data-testid*="image"], img:not([src*="avatar"]):not([src*="user"])'
-                ).all()
-
-                for img in img_elements:
-                    src_val = img.get_attribute("src") or ""
-                    class_val = img.get_attribute("class") or ""
-                    alt_val = img.get_attribute("alt") or ""
-
-                    # Pomijamy awatary i zdjęcia użytkowników
-                    if (
-                        "avatar" in src_val.lower()
-                        or "avatar" in class_val.lower()
-                        or "user" in src_val.lower()
-                    ):
+                    if item_id in scraped_item_ids:
                         continue
+                    scraped_item_ids.add(item_id)
 
-                    if alt_val and any(
-                        x in alt_val.lower()
-                        for x in ["profil", "użytkownik", "zdjęcie użytkownika", "avatar"]
-                    ):
-                        continue
-
-                    candidate = (
-                        img.get_attribute("data-src")
-                        or img.get_attribute("src")
-                        or img.get_attribute("srcset")
-                        or ""
+                    clean_path = raw_link.split("?")[0]
+                    full_link = (
+                        clean_path
+                        if clean_path.startswith("http")
+                        else f"https://www.vinted.pl{clean_path}"
                     )
-                    if candidate:
-                        image_url = candidate.split(",")[0].split(" ")[0].strip()
-                        break
 
-                results.append(
-                    {
-                        "id": item_id,  # Unikalny klucz ID
-                        "title": title,
-                        "price": price,
-                        "size": size,
-                        "status": status,
-                        "description": description,
-                        "url": full_link,
-                        "image_url": image_url,
-                    }
-                )
-            except Exception:
-                continue
+                    title = _visible_text(
+                        item.locator('[data-testid*="title"], p').first,
+                        "Brak tytułu",
+                    )
+                    price = _visible_text(
+                        item.locator(
+                            '[data-testid="total-combined-price"], [data-testid*="price"]'
+                        ).first,
+                        "Brak ceny",
+                    )
+                    size = _visible_text(
+                        item.locator('[data-testid*="size"]').first,
+                        "Brak rozmiaru",
+                    )
+                    status = _visible_text(
+                        item.locator('[data-testid*="status"]').first,
+                        "Brak danych",
+                    )
 
-        browser.close()
+                    image_url = ""
+                    img_elements = item.locator(
+                        'img[src*="/items/"], img[data-testid*="image"], '
+                        'img:not([src*="avatar"]):not([src*="user"])'
+                    ).all()
+                    for img in img_elements:
+                        src_val = img.get_attribute("src") or ""
+                        class_val = img.get_attribute("class") or ""
+                        alt_val = img.get_attribute("alt") or ""
+                        if (
+                            "avatar" in src_val.lower()
+                            or "avatar" in class_val.lower()
+                            or "user" in src_val.lower()
+                        ):
+                            continue
+                        if alt_val and any(
+                            x in alt_val.lower()
+                            for x in [
+                                "profil",
+                                "użytkownik",
+                                "zdjęcie użytkownika",
+                                "avatar",
+                            ]
+                        ):
+                            continue
+                        candidate = (
+                            img.get_attribute("data-src")
+                            or src_val
+                            or img.get_attribute("srcset")
+                            or ""
+                        )
+                        if candidate:
+                            image_url = candidate.split(",")[0].split(" ")[0].strip()
+                            break
+
+                    results.append(
+                        {
+                            "id": item_id,
+                            "title": title,
+                            "price": price,
+                            "size": size,
+                            "status": status,
+                            "description": "",
+                            "url": full_link,
+                            "image_url": image_url,
+                        }
+                    )
+                except PlaywrightError as e:
+                    print(f"⚠️ Nie udało się odczytać kafelka oferty: {e}")
+
+            details_page = context.new_page()
+            for result in results:
+                if result["id"] in known_item_ids:
+                    continue
+                try:
+                    details_page.goto(
+                        result["url"],
+                        wait_until="domcontentloaded",
+                        timeout=20000,
+                    )
+                    result["description"] = _detail_text(
+                        details_page,
+                        (
+                            '[data-testid*="item-description"]',
+                            '[data-testid="item-description"]',
+                            '[itemprop="description"]',
+                            ".item-description",
+                        ),
+                    )
+                    result["status"] = _detail_text(
+                        details_page,
+                        (
+                            '[data-testid*="item-condition"]',
+                            '[data-testid*="item-status"]',
+                            '[itemprop="itemCondition"]',
+                        ),
+                    ) or result["status"]
+                except PlaywrightError as e:
+                    print(
+                        f"⚠️ Nie udało się pobrać szczegółów oferty {result['id']}: {e}"
+                    )
+        finally:
+            browser.close()
 
     return results
 
