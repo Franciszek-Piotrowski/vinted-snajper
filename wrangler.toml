@@ -1,0 +1,11 @@
+name = "lively-sky-b286"
+main = "worker/index.mjs"
+compatibility_date = "2026-10-27"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+GITHUB_REPOSITORY = "Franciszek-Piotrowski/vinted-snajper"
+GITHUB_WORKFLOW = "vinted_sniper.yml"
+GITHUB_REF = "main"
