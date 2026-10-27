@@ -13,10 +13,17 @@ def load_main_module():
     scraper = types.ModuleType("scraper")
     scraper.TARGET_URL = "https://example.invalid"
     scraper.scrape_vinted_products = None
+    config = types.ModuleType("config")
+    config.validate_config = None
 
     with patch.dict(
         sys.modules,
-        {"ai_agent": ai_agent, "notifier": notifier, "scraper": scraper},
+        {
+            "ai_agent": ai_agent,
+            "config": config,
+            "notifier": notifier,
+            "scraper": scraper,
+        },
     ):
         sys.modules.pop("main", None)
         module = importlib.import_module("main")
@@ -50,6 +57,7 @@ class MainTests(unittest.TestCase):
         self.notify_mock = notifier_patch.start()
         self.addCleanup(notifier_patch.stop)
         patches = [
+            patch.object(main_module, "validate_config"),
             patch.object(main_module, "load_seen_items", return_value=[]),
             patch.object(main_module, "scrape_vinted_products", return_value=items),
             patch.object(main_module, "analyze_deal_with_ai", side_effect=decision),
@@ -66,6 +74,23 @@ class MainTests(unittest.TestCase):
         main_module.main()
 
         self.assertEqual(self.saved, [])
+
+    def test_missing_configuration_stops_before_scraping(self):
+        validator = patch.object(
+            main_module,
+            "validate_config",
+            side_effect=RuntimeError("GEMINI_API_KEY missing"),
+        )
+        scraper_patch = patch.object(main_module, "scrape_vinted_products")
+        scraper = scraper_patch.start()
+        validator.start()
+        self.addCleanup(validator.stop)
+        self.addCleanup(scraper_patch.stop)
+
+        with self.assertRaisesRegex(RuntimeError, "GEMINI_API_KEY missing"):
+            main_module.main()
+
+        scraper.assert_not_called()
 
     def test_failed_telegram_send_does_not_mark_accepted_item_as_seen(self):
         self.configure([item("1")], [(True, "Analiza")], notification_result=False)
@@ -86,6 +111,7 @@ class MainTests(unittest.TestCase):
         active_item = item("199")
         self.saved = []
         patches = [
+            patch.object(main_module, "validate_config"),
             patch.object(main_module, "load_seen_items", return_value=legacy_history),
             patch.object(
                 main_module,
@@ -116,6 +142,10 @@ class MainTests(unittest.TestCase):
         self.assertEqual(self.notify_mock.call_count, 5)
         self.assertIn("&lt;Napapijri&gt;", self.notify_mock.call_args.kwargs["caption"])
         self.assertIn("&lt;wady&gt;", self.notify_mock.call_args.kwargs["caption"])
+        self.assertNotIn(
+            "Opis",
+            self.notify_mock.call_args.kwargs["caption"],
+        )
 
 
 if __name__ == "__main__":

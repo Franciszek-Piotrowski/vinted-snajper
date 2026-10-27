@@ -6,6 +6,34 @@ import ai_agent
 
 
 class AiAgentTests(unittest.TestCase):
+    def test_prompt_uses_foreign_language_description_without_quoting_it(self):
+        client = SimpleNamespace(
+            models=SimpleNamespace(
+                generate_content=Mock(
+                    return_value=SimpleNamespace(
+                        text="DECYZJA: NIE\nOpis sprzedawcy wskazuje na zużycie."
+                    )
+                )
+            )
+        )
+
+        with (
+            patch.object(ai_agent, "GEMINI_API_KEY", "test-key"),
+            patch.object(ai_agent.genai, "Client", return_value=client),
+        ):
+            ai_agent.analyze_deal_with_ai(
+                "Kurtka",
+                "100 PLN",
+                "M",
+                "Nowy bez metki",
+                "Porté quelques fois",
+            )
+
+        prompt = client.models.generate_content.call_args.kwargs["contents"][-1]
+        self.assertIn("Porté quelques fois", prompt)
+        self.assertIn("przetłumacz go wewnętrznie na polski", prompt)
+        self.assertIn("Nie cytuj ani nie wklejaj opisu", prompt)
+
     def test_returns_decision_from_exact_first_line(self):
         client = SimpleNamespace(
             models=SimpleNamespace(

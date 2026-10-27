@@ -1,5 +1,6 @@
 # scraper.py
 import re
+import sys
 from collections.abc import Collection
 
 from playwright.sync_api import Error as PlaywrightError
@@ -24,6 +25,49 @@ def _detail_text(page: Page, selectors: tuple[str, ...]) -> str:
             value = locator.inner_text().strip()
             if value:
                 return value
+    return ""
+
+
+def _detail_attribute(page: Page, labels: tuple[str, ...]) -> str:
+    label_set = {label.casefold() for label in labels}
+
+    def value_from_text(text: str) -> str:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        for index, line in enumerate(lines):
+            normalized = line.casefold().rstrip(":")
+            if normalized in label_set and index + 1 < len(lines):
+                return lines[index + 1]
+            for label in labels:
+                match = re.match(
+                    rf"^{re.escape(label)}(?:\s*:\s*|\s+)(.+)$",
+                    line,
+                    re.IGNORECASE,
+                )
+                if match:
+                    return match.group(1).strip()
+        return ""
+
+    rows = page.locator(
+        '[data-testid*="item-attributes"], [data-testid*="attribute"], '
+        '.details-list__item, [class*="attributes__item"]'
+    ).all()
+
+    for row in rows:
+        value = value_from_text(row.inner_text())
+        if value:
+            return value
+
+    for label_span in page.locator("span.web_ui__Text__text").all():
+        if label_span.inner_text().strip().casefold().rstrip(":") not in label_set:
+            continue
+        parent = label_span.locator("xpath=..")
+        value = value_from_text(parent.inner_text())
+        if value:
+            return value
+        value = value_from_text(parent.locator("xpath=..").inner_text())
+        if value:
+            return value
+
     return ""
 
 
@@ -176,12 +220,25 @@ def scrape_vinted_products(
                         details_page,
                         (
                             '[data-testid*="item-description"]',
-                            '[data-testid="item-description"]',
                             '[itemprop="description"]',
                             ".item-description",
+                            '[class*="description"]',
                         ),
                     )
-                    result["status"] = _detail_text(
+                    result["size"] = _detail_attribute(
+                        details_page,
+                        ("Rozmiar", "Size"),
+                    ) or _detail_text(
+                        details_page,
+                        (
+                            '[data-testid*="item-size"]',
+                            '[itemprop="size"]',
+                        ),
+                    ) or result["size"]
+                    result["status"] = _detail_attribute(
+                        details_page,
+                        ("Stan", "Condition"),
+                    ) or _detail_text(
                         details_page,
                         (
                             '[data-testid*="item-condition"]',
@@ -194,7 +251,12 @@ def scrape_vinted_products(
                         f"⚠️ Nie udało się pobrać szczegółów oferty {result['id']}: {e}"
                     )
         finally:
-            browser.close()
+            active_exception = sys.exc_info()[0]
+            try:
+                browser.close()
+            except Exception:
+                if active_exception is not KeyboardInterrupt:
+                    raise
 
     return results
 

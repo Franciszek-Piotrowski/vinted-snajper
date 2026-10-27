@@ -2,6 +2,7 @@ import html
 import time
 
 from ai_agent import analyze_deal_with_ai
+from config import validate_config
 from database import MAX_SEEN_ITEMS, load_seen_items, save_seen_items
 from notifier import send_telegram_notification
 from scraper import TARGET_URL, scrape_vinted_products
@@ -11,6 +12,7 @@ MAX_NOTIFICATIONS = 5
 
 def main() -> None:
     print("🚀 Uruchamianie Vinted Snajpera z AI...")
+    validate_config()
 
     seen_items = load_seen_items()
     seen_item_ids = set(seen_items)

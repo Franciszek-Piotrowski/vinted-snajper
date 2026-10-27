@@ -18,13 +18,17 @@ python -m pip install -r requirements.txt
 playwright install chromium
 ```
 
-Ustaw zmienne środowiskowe `GEMINI_API_KEY`, `BOT_TOKEN` i `CHAT_ID`, a następnie uruchom:
+Skopiuj `.env.example` do `.env`, uzupełnij lokalne klucze i identyfikator czatu, a następnie uruchom:
 
 ```bash
+cp .env.example .env
+# Edytuj .env i wpisz własne wartości
 python main.py
 ```
 
-Jeśli nie aktywujesz środowiska poleceniem `source .venv/bin/activate`, uruchom program bezpośrednio przez `.venv/bin/python main.py`. W VS Code ustaw interpreter workspace na `.venv/bin/python`.
+Jeśli nie aktywujesz środowiska wirtualnego, uruchom `.venv/bin/python main.py`.
+
+Plik `.env` jest ignorowany przez Git. Sekrety zapisane w GitHubie są dostępne wyłącznie w GitHub Actions i nie są automatycznie przekazywane do lokalnego terminala. Program sprawdza wymagane klucze przed rozpoczęciem scrapowania.
 
 Historia przetworzonych ofert jest przechowywana w `seen_items.json`; zapis zachowuje maksymalnie 150 najnowszych ID.
 

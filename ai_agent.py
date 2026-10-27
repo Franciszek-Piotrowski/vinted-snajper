@@ -52,6 +52,8 @@ Oto dane oferty:
 - Stan podany przez sprzedawcę: {status}
 - Opis: {description}
 
+Opis może być napisany w dowolnym języku. W razie potrzeby przetłumacz go wewnętrznie na polski i wykorzystaj do wykrywania wad, uszkodzeń, plam oraz sprzeczności z deklarowanym stanem. Nie cytuj ani nie wklejaj opisu w odpowiedzi — podaj wyłącznie wnioski istotne dla oceny.
+
 HIERARCHIA I KRYTERIA RESELLINGOWE:
 
 1. **TYP PRODUKTU I KROJ (Główny filtr zimowy)**:
@@ -62,6 +64,7 @@ HIERARCHIA I KRYTERIA RESELLINGOWE:
      * Jeśli kategoria lub opis sugeruje wiatrówkę, ALE opis/zdjęcie nie wyklucza jednoznacznie polaru, a krój to klasyczna kangurka w świetnej cenie -> ZAAKCEPTUJ (daj TAK) i zaznacz w opinii, by dopytać sprzedawcę o polar.
      * Jeśli opis WPROST mówi "cienka / wiatrówka / letnia / summer / bez polaru" -> DECYZJA: NIE.
      * Jeśli opis lub stan nie są dostępne, nie zakładaj, że oferta jest bez wad. Odrzuć ofertę, jeśli nie da się wiarygodnie ocenić stanu ze zdjęć.
+     * Opis sprzedawcy ma pierwszeństwo przy identyfikowaniu wad; deklaracja stanu nie unieważnia informacji o uszkodzeniach w opisie.
    - **BEZWZGLĘDNY ZAKAZ (DECYZJA: NIE)**:
      * Kurtki rozpinane na całej długości (Zip-Through / Open) – słaby popyt.
      * Zwykłe bluzy polarowe (fleece bez kurtki), t-shirty, spodnie, czapki, torby.
