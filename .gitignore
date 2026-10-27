@@ -1,1 +1,6 @@
 __pycache__/config.cpython-315.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+.dev.vars
+.wrangler/

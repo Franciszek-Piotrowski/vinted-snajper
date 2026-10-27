@@ -1,5 +1,6 @@
 # ai_agent.py
 import time
+from typing import Optional
 import requests
 from config import GEMINI_API_KEY
 from google import genai
@@ -12,10 +13,11 @@ def analyze_deal_with_ai(
     size: str,
     status: str,
     description: str = "Brak opisu",
-    image_url: str = None,
-) -> tuple[bool, str]:
+    image_url: Optional[str] = None,
+) -> tuple[Optional[bool], str]:
     if not GEMINI_API_KEY or GEMINI_API_KEY == "TWÓJ_GEMINI_API_KEY":
-        return False, "⚠️ Brak skonfigurowanego klucza Gemini."
+        print("❌ Brak skonfigurowanego klucza Gemini.")
+        return None, "🤖 AI: Brak skonfigurowanego klucza Gemini."
 
     client = genai.Client(api_key=GEMINI_API_KEY)
     contents = []
@@ -25,12 +27,19 @@ def analyze_deal_with_ai(
         try:
             img_response = requests.get(image_url, timeout=5)
             if img_response.status_code == 200:
-                image_part = types.Part.from_bytes(
-                    data=img_response.content,
-                    mime_type="image/jpeg",
-                )
-                contents.append(image_part)
-        except Exception as e:
+                mime_type = img_response.headers.get("Content-Type", "").split(";")[0]
+                if not mime_type.startswith("image/"):
+                    print("⚠️ Adres zdjęcia nie zwrócił danych obrazu.")
+                    mime_type = ""
+                if mime_type:
+                    image_part = types.Part.from_bytes(
+                        data=img_response.content,
+                        mime_type=mime_type,
+                    )
+                    contents.append(image_part)
+            else:
+                print(f"⚠️ Nie udało się pobrać zdjęcia (HTTP {img_response.status_code}).")
+        except requests.RequestException as e:
             print(f"⚠️ Błąd pobierania zdjęcia do AI: {e}")
 
     prompt = f"""
@@ -52,6 +61,7 @@ HIERARCHIA I KRYTERIA RESELLINGOWE:
      * Jeśli na zdjęciu/w opisie widać ocieplenie polarowe -> ZDECYDOWANE TAK.
      * Jeśli kategoria lub opis sugeruje wiatrówkę, ALE opis/zdjęcie nie wyklucza jednoznacznie polaru, a krój to klasyczna kangurka w świetnej cenie -> ZAAKCEPTUJ (daj TAK) i zaznacz w opinii, by dopytać sprzedawcę o polar.
      * Jeśli opis WPROST mówi "cienka / wiatrówka / letnia / summer / bez polaru" -> DECYZJA: NIE.
+     * Jeśli opis lub stan nie są dostępne, nie zakładaj, że oferta jest bez wad. Odrzuć ofertę, jeśli nie da się wiarygodnie ocenić stanu ze zdjęć.
    - **BEZWZGLĘDNY ZAKAZ (DECYZJA: NIE)**:
      * Kurtki rozpinane na całej długości (Zip-Through / Open) – słaby popyt.
      * Zwykłe bluzy polarowe (fleece bez kurtki), t-shirty, spodnie, czapki, torby.
@@ -85,7 +95,6 @@ W kolejnych linijkach napisz zwięzłą, konkretną analizę po polsku (3-4 zdan
 """
     contents.append(prompt)
 
-    # Używamy modelu z list z pełnym limitem 1500 zapytań/dzień
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
@@ -94,8 +103,12 @@ W kolejnych linijkach napisz zwięzłą, konkretną analizę po polsku (3-4 zdan
                 contents=contents,
             )
 
-            analysis_text = response.text.strip()
-            should_send = "DECYZJA: TAK" in analysis_text
+            analysis_text = (response.text or "").strip()
+            first_line = analysis_text.splitlines()[0].strip() if analysis_text else ""
+            if first_line not in {"DECYZJA: TAK", "DECYZJA: NIE"}:
+                print("❌ Gemini zwróciło odpowiedź bez prawidłowej decyzji.")
+                return None, "🤖 AI: Nie udało się odczytać decyzji z odpowiedzi."
+            should_send = first_line == "DECYZJA: TAK"
 
             clean_opinion = (
                 analysis_text.replace("DECYZJA: TAK", "")
@@ -111,6 +124,6 @@ W kolejnych linijkach napisz zwięzłą, konkretną analizę po polsku (3-4 zdan
                 time.sleep(3)
             else:
                 print(f"❌ Błąd Gemini API: {e}")
-                return False, "🤖 AI: Nie udało się przeprowadzić analizy z powodu błędu API."
+                return None, "🤖 AI: Nie udało się przeprowadzić analizy z powodu błędu API."
 
-    return False, "🤖 AI: Serwery Gemini niedostępne."
+    return None, "🤖 AI: Serwery Gemini niedostępne."
